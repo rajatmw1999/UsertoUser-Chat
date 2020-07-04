@@ -2,18 +2,15 @@
   "name": "demo-chat-app",
   "version": "1.0.0",
   "description": "demo chat app",
-  "main": "server.js",  
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "server": "nodemon server.js",
-    "dev": "npm run server"
+    "test": "jasmine"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
-    "moment": "^2.27.0",
     "mongoose": "^5.9.21",
     "socket.io": "^2.3.0"
   },

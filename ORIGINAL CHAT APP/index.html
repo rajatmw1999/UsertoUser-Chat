@@ -41,13 +41,13 @@
     }
 
     function getMessages(){
-      $.get('http://chatmss.herokuapp.com/messages/user3/user4', (data) => {
+      $.get('http://localhost:3000/messages', (data) => {
         data.forEach(addMessages);
       })
     }
 
     function sendMessage(message){
-      $.post('http://chatmss.herokuapp.com/messages/user3/user4', message)
+      $.post('http://localhost:3000/messages', message)
     }
 </script>
 </body>
