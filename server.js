@@ -13,6 +13,8 @@ app.use(bodyParser.urlencoded({extended: false}))
 
 var Message = mongoose.model('Message',{
   id:String,
+  user1:String,
+  user2:String,
   messages:[
     {
       mid:String,
@@ -23,6 +25,17 @@ var Message = mongoose.model('Message',{
     }
   ]
 })
+
+var UserChats = mongoose.model('userchats',{
+  id:String,
+  user:String,
+  chats:[
+    {
+      user2:String
+    }
+  ]
+})
+
 
 // var dbUrl = 'mongodb+srv://admin:admin@cluster0-nbxxl.mongodb.net/simplechat?retryWrites=true&w=majority'
 mongoose.connect("mongodb+srv://admin:admin@cluster0-nbxxl.mongodb.net/chatms?retryWrites=true&w=majority",{useNewUrlParser: true, useUnifiedTopology:true});
@@ -39,24 +52,81 @@ app.get('/messages/:userid1/:userid2', (req, res) => {
   })
 })
 
-
-// app.get('/messages/:user', (req, res) => {
-//   var user = req.params.user
-//   Message.find({name: user},(err, messages)=> {
-//     res.send(messages);
-//   })
-// })
-
-
 app.post('/messages/:userid1/:userid2', async (req, res) => {
   const messageId = req.params.userid1 + ',' + req.params.userid2;
   var sendingGuy= messageId.substr(0, messageId.indexOf(','));
   var sendingGuy2= messageId.substr(messageId.indexOf(',') +1, messageId.length);
-  console.log(sendingGuy2);
-  
-  // console.log('sending Guy = ' + sendingGuy + ' or ' + sendingGuy2);
   var name = req.body.name;
   var msg = req.body.message;
+
+  UserChats.findOne({user:sendingGuy}, async(err, found)=> {
+    if(err)
+      console.log(err);
+    var flag = -1;
+    if(!found)
+    {
+      var newChat = new UserChats({
+        user:sendingGuy,
+        chats:[
+          {
+            user2:sendingGuy2
+          }
+        ]
+      });
+      newChat.save();
+    }
+    else{
+      found.chats.forEach(function(c){
+        if(c.user2===sendingGuy2)
+        {
+          flag=1;
+        }
+      });  
+      if(flag===-1)
+      {
+        found.chats.push({
+          user2:sendingGuy2
+        });
+        found.save();
+      }
+    }
+    
+  });
+
+  UserChats.findOne({user:sendingGuy2}, async(err, found)=> {
+    if(err)
+      console.log(err);
+    var flag = -1;
+    if(!found)
+    {
+      var newChat = new UserChats({
+        user:sendingGuy2,
+        chats:[
+          {
+            user2:sendingGuy
+          }
+        ]
+      });
+      newChat.save();
+    }
+    else{
+      found.chats.forEach(function(c){
+        if(c.user2===sendingGuy)
+        {
+          flag=1;
+        }
+      });
+      if(flag===-1)
+      {
+        found.chats.push({
+          user2:sendingGuy
+        });
+        found.save();
+      }
+    }
+     
+  });
+
 
   if((sendingGuy!=name)&&(sendingGuy2!=name))
   {
@@ -85,7 +155,9 @@ app.post('/messages/:userid1/:userid2', async (req, res) => {
       if(!found)
       {
         const newMessageRoom = new Message({
-          id:messageId
+          id:messageId,
+          user1:sendingGuy,
+          user2:sendingGuy2
         });
         await newMessageRoom.save();
         await newMessageRoom.messages.push(message);
@@ -101,15 +173,6 @@ app.post('/messages/:userid1/:userid2', async (req, res) => {
       res.sendStatus(200);
     });
 
-    // var savedMessage = await message.save()
-      // console.log('saved');
-
-    // var censored = await Message.findOne({message:'badword'});
-    //   if(censored)
-    //     await Message.remove({_id: censored.id})
-    //   else
-    //     io.emit('message', req.body);
-    //   res.sendStatus(200);
   }
   catch (error){
     res.sendStatus(500);
@@ -120,15 +183,60 @@ app.post('/messages/:userid1/:userid2', async (req, res) => {
   }
 })
 
+app.get('/messages/:userid', async(req, res) => {
+  var user  = req.params.userid;
+  var returnData = [];
+  UserChats.findOne({user:user}, async(err, found)=> {
+    if(err)
+      console.log(err);
+    if(found)
+      {
+        console.log('found');
+        
+        returnData = found.chats.map(obj => {
+          
+          return obj.user2;
+           })
+      }
+      return res.send(returnData);
+  });
+ });
 
+ app.delete('/messages/:userid1/:userid2', async(req, res)=>{
+   var user = req.params.userid1;
+  UserChats.findOne({user:req.params.userid1}, async(err, found)=>{
+    if(err)
+      console.log(err);
+    if(found)
+    {
+      found.chats.forEach(function(c){
+        if(c.user2 === req.params.userid2)
+          c.user2 = null;
+      });
+      await found.save();
+    }
+  });
+  var returnData = [];
+  UserChats.findOne({user:user}, async(err, found)=> {
+    if(err)
+      console.log(err);
+    if(found)
+      {
+        console.log('found');
+        
+        returnData = found.chats.map(obj => {
+          
+          return obj.user2;
+           })
+      }
+      return res.send(returnData);
+  });
+ });
 
 io.on('connection', () =>{
   console.log('a user is connected')
 })
 
-// mongoose.connect(dbUrl ,{useMongoClient : true} ,(err) => {
-//   console.log('mongodb connected',err);
-// })
 
 var server = http.listen(process.env.PORT || 3000, () => {
   console.log('server is running on port', server.address().port);
