@@ -6,11 +6,12 @@ var io = require('socket.io')(http);
 var mongoose = require('mongoose');
 var moment = require('moment');
 const { send } = require('process');
+// var cors = require('cors');
 
 app.use(express.static(__dirname));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}))
-
+// app.use(cors())
 var Message = mongoose.model('Message',{
   id:String,
   user1:String,
@@ -36,8 +37,6 @@ var UserChats = mongoose.model('userchats',{
   ]
 })
 
-
-// var dbUrl = 'mongodb+srv://admin:admin@cluster0-nbxxl.mongodb.net/simplechat?retryWrites=true&w=majority'
 mongoose.connect("mongodb+srv://admin:admin@cluster0-nbxxl.mongodb.net/chatms?retryWrites=true&w=majority",{useNewUrlParser: true, useUnifiedTopology:true});
 
 app.get('/messages/:userid1/:userid2', (req, res) => {
@@ -194,7 +193,6 @@ app.get('/messages/:userid', async(req, res) => {
         console.log('found');
         
         returnData = found.chats.map(obj => {
-          
           return obj.user2;
            })
       }
@@ -233,10 +231,89 @@ app.get('/messages/:userid', async(req, res) => {
   });
  });
 
-io.on('connection', () =>{
-  console.log('a user is connected')
-})
+io.on('connection', (socket) =>{
+  console.log('a user is connected');
+  socket.emit('uConnected', "");
+    socket.on('join', function (name) {
+        console.log(name + " : has joined the chat ");
+        socket.broadcast.emit('userjoinedthechat', userNickname + " : has   joined the chat ");
+    });
 
+    socket.on('close',()=>{
+        console.log("closed connection");
+    })
+
+    socket.on("message", (data) => {
+        console.log(data);
+        var d = sendMessage(data, socket);
+        console.log(JSON.stringify(d));
+    });
+
+    socket.on('disconnect', function () {
+        socket.broadcast.emit("userdisconnect", ' user has left');
+    });
+  });
+  function sendMessage(mes, soc) {
+    const messageId = "user3,user4";
+    var sendingGuy = messageId.substr(0, messageId.indexOf(','));
+    var sendingGuy2 = messageId.substr(messageId.indexOf(',') + 1, messageId.length);
+    console.log(sendingGuy2);
+
+    var data = mes;
+    // console.log(data.name, data.to);
+    if ((sendingGuy == sendingGuy2)) {
+        console.log('Invalid request');
+        soc.emit("Invalid Request", "sending message to same person");
+        return "Invalid Request";
+    }
+    try {
+        console.log("in sending message", data);
+        var uniqueNumber = (new Date().getTime()).toString(36);
+        var message = {
+            mid: uniqueNumber,
+            name: data.name,
+            message: data.message,
+            time: moment().format('h:mm a'),
+            date: moment(new Date()).format("DD/MM/YYYY")
+        };
+
+        Message.findOne({ id: messageId }, async (err, found) => {
+            if (err) {
+                soc.emit("no such users found", "No such users found");
+                return console.log('error', err);
+            }
+            if (!found) {
+                const newMessageRoom = new Message({
+                    id: messageId
+                });
+                await newMessageRoom.save();
+                await newMessageRoom.messages.push(message);
+                await newMessageRoom.save();
+                console.log('saved');
+            }
+            else {
+                await found.messages.push(message);
+                await found.save();
+                console.log('saved');
+            }
+            io.emit('message', message);
+            var output = {
+                message: message,
+                status: 200
+            }
+            console.log('Output: \n', message);
+            soc.broadcast.emit("new message", JSON.stringify(message));
+            soc.emit("new message",  JSON.stringify(message));
+        });
+    }
+    catch (error) {
+        soc.emit("error in connection", "connection error");
+        return error;
+    }
+    finally {
+        console.log('Message Posted')
+    }
+}
 
 var server = http.listen(process.env.PORT || 3000, () => {
   console.log('server is running on port', server.address().port);
